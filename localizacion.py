@@ -55,25 +55,36 @@ def mostrar(objetivos,ideal,trayectoria):
   plt.clf()
 
 def localizacion(balizas, real, ideal, centro, radio, mostrar=0):
-  # Buscar la localizaci�n m�s probable del robot, a partir de su sistema
-  # sensorial, dentro de una regi�n cuadrada de centro "centro" y lado "2*radio".
-  error = 0
+  # Image that will store all the errors given for all the points in the radius
   imagen = []
-  error_min = sys.maxsize
-  point = []
+  # Smallest error found that corresponds to the most probable point in the radius
+  min_error = sys.maxsize
+  # Most probable point in the radius where real robot is
+  best_point = []
+  # Increment to loop throughout the radius
   increment = 0.05
   for j in np.arange(-radio, radio, increment):
     imagen.append([])
     for i in np.arange(-radio, radio, increment):
-      ideal.set(centro[0] + i, centro[1] + j, ideal.orientation)
+      # We get the current point components
+      x_component = centro[0] + i
+      y_component = centro[1] + j
+      # We move our ideal robot to the current point in the radius
+      ideal.set(x_component, y_component, ideal.orientation)
+      # We checkout the difference between the measurements that the new ideal robot has
+      # and the measurements from the real one.
       error = real.measurement_prob(ideal.sense(balizas), balizas)
+      # We store the new error given
       imagen[-1].append(error)
-      if (error < error_min):
-        error_min = error
-        point = [centro[0] + i, centro[1] + j]
-  
-  ideal.set(point[0], point[1], real.orientation)
-  print("Modificacion:", point, error_min)
+      # If the new error given is better than our current minimun error, we update our best_point
+      # and the value for the best error since it means that it's more likely that our robot is
+      # in the current point that we're checking than in the last point stored.
+      if (error < min_error):
+        min_error = error
+        best_point = [x_component, y_component]
+  # We set the ideal robot to the new point where we think that the real robot is now.
+  ideal.set(best_point[0], best_point[1], real.orientation)
+  print("Modificacion:", best_point, min_error)
 
 
   if mostrar:
@@ -123,7 +134,7 @@ V = V_LINEAL/FPS            # Metros por fotograma
 W = V_ANGULAR*pi/(180*FPS)  # Radianes por fotograma
 
 ideal = robot()
-ideal.set_noise(0,0,.1)   # Ruido lineal / radial / de sensado
+ideal.set_noise(0, 0, .03)   # Ruido lineal / radial / de sensado
 ideal.set(*P_INICIAL)     # operador 'splat'
 
 real = robot()
@@ -139,14 +150,14 @@ espacio = 0.
 #random.seed(0)
 random.seed(datetime.now())
 
-centro = [len(objetivos) / 2, len(objetivos) / 2]
+centro = [0, 4]
 
 localizacion(objetivos, real, ideal, centro, 5, 1)
 
 for punto in objetivos:
   while distancia(tray_ideal[-1],punto) > EPSILON and len(tray_ideal) <= 1000:
     pose = ideal.pose()
-
+    # Moving the robots
     w = angulo_rel(pose,punto)
     if w > W:  w =  W
     if w < -W: w = -W
@@ -165,7 +176,7 @@ for punto in objetivos:
     tray_ideal.append(ideal.pose())
     tray_real.append(real.pose())
 
-    if (ideal.measurement_prob(real.sense(objetivos), objetivos) > EPSILON) :
+    if (real.measurement_prob(ideal.sense(objetivos), objetivos) > EPSILON) :
       localizacion(objetivos, real, ideal, ideal.pose(), 0.2, 0)
     
     espacio += v
